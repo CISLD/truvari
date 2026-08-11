@@ -262,8 +262,8 @@ def make_ga4gh(input_dir, out_prefix, pull_refine=False, write_phab=False, subse
     if not pull_refine:
         output.pull_from_dir(input_dir)
     else:
-        regions = pd.read_csv(os.path.join(
-            input_dir, "refine.regions.txt"), sep='\t')
+        regions = pd.read_csv(os.path.join(input_dir, "refine.regions.txt"),
+                              sep='\t', dtype={'chrom': str})
         regions = regions[regions['refined']] # Only interested in this subset
         if write_phab:
             phab_dir = os.path.join(input_dir, 'phab_bench')
