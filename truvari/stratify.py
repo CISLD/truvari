@@ -91,6 +91,12 @@ def stratify_main(cmdargs):
     args = parse_args(cmdargs)
     read_header = 0 if args.header else None
     regions = pd.read_csv(args.regions, sep='\t', header=read_header)
+    # Chromosome names are strings even when they all look like numbers, which
+    # is every GRCh37 autosome. Left to pandas, the column is inferred as int64
+    # and pysam's fetch raises "Argument must be string, bytes or unicode". A
+    # single region on X or MT keeps the column as object and hides it, so the
+    # failure only shows up on some inputs.
+    regions[regions.columns[0]] = regions[regions.columns[0]].astype(str)
     r_list = regions.to_numpy().tolist()  # the methods expect lists
     if os.path.isdir(args.in_vcf):
         counts = benchdir_count_entries(args.in_vcf, r_list, args.complement)
