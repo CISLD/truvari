@@ -178,16 +178,51 @@ def read_bed_tree(filename, chrom_col=0, start_col=1, end_col=2, one_based=False
     return tree, idx
 
 
-def region_filter(vcf, tree, inside=True, with_region=False):
+def region_filter(vcf, tree, inside=True, with_region=False, overlap=0):
     """
     Chooses to stream or fetch entries inside/outside a VCF
     If the VCF is over 25Mb or the number of regions is above 1k, use stream
+
+    A non-zero `overlap` keeps entries intersecting a region by at least that
+    many positions instead of entries contained by a region. Only valid with
+    inside=True.
     """
+    if overlap:
+        if not inside:
+            raise ValueError("overlap filtering is only defined for inside=True")
+        return region_filter_stream_overlap(vcf, tree, with_region, overlap)
+
     sz = os.stat(vcf.filename)
     if not inside or sz.st_size > (25 * 2**20) or sum(len(_) for _ in tree.values()) > 1000:
         return region_filter_stream(vcf, tree, inside, with_region)
 
     return region_filter_fetch(vcf, tree, with_region)
+
+
+def region_filter_stream_overlap(vcf, tree, with_region=False, minsize=1):
+    """
+    Given a VariantRecord iter and defaultdict(IntervalTree), yield variants
+    sharing at least `minsize` positions with a single region. Entries shorter
+    than `minsize` only need to be fully overlapped, which keeps one position
+    events such as insertions eligible.
+
+    Entries are yielded at most once, however many regions they span.
+    with_region returns (entry, (chrom, Interval)) of the first such region.
+    """
+    for chrom in sorted(tree.keys()):
+        try:
+            cur_iter = vcf.fetch(chrom)
+        except ValueError:
+            continue  # region on chromosome not in vcf
+        for entry in cur_iter:
+            qstart, qend = entry.boundaries()
+            needed = max(1, min(minsize, qend - qstart))
+            for intv in sorted(tree[chrom].overlap(qstart, qend)):
+                # read_bed_tree stores intervals inflated by one position, so
+                # the region is [begin, end - 1) as the other filters treat it
+                if truvari.overlap_size(qstart, qend, intv.begin, intv.end - 1) >= needed:
+                    yield (entry, (chrom, intv)) if with_region else entry
+                    break
 
 
 def region_filter_fetch(vcf, tree, with_region=False):

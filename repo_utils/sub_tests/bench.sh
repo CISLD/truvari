@@ -52,6 +52,39 @@ if [ $bench_13_extend ]; then
     bench_assert 13_extend
 fi
 
+# Testing --bench-overlaps
+run bench_13_overlaps bench 1 3 13_overlaps "--includebed $INDIR/beds/include.bed --bench-overlaps 1"
+if [ $bench_13_overlaps ]; then
+    assert_exit_code 0
+fi
+
+run bench_13_overlaps_wide bench 1 3 13_overlaps_wide "--includebed $INDIR/beds/include.bed --bench-overlaps 5000"
+if [ $bench_13_overlaps_wide ]; then
+    assert_exit_code 0
+fi
+
+# Intersecting counts everything containment counted and then some, and a
+# longer required overlap can only narrow that back down
+run bench_overlaps_counts python3 -c """
+import json
+def counts(d):
+    s = json.load(open('$OD/bench' + d + '/summary.json'))
+    return s['base cnt'], s['comp cnt']
+inside = counts('13_includebed')
+touch = counts('13_overlaps')
+wide = counts('13_overlaps_wide')
+assert all(t >= i for t, i in zip(touch, inside)), f'{touch} lost calls from {inside}'
+assert touch != inside, f'{touch} found no boundary spanning calls'
+assert all(w <= t for w, t in zip(wide, touch)), f'{wide} exceeds {touch}'
+"""
+if [ $bench_overlaps_counts ]; then
+    assert_exit_code 0
+fi
+
+run bench_overlaps_noincludebed bench 1 3 _overlaps_noincludebed "--bench-overlaps 1"
+if [ $bench_overlaps_noincludebed ]; then
+    assert_exit_code 100
+fi
 
 # --unroll
 run bench_unroll $truv bench -b $INDIR/variants/real_small_base.vcf.gz \

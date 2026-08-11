@@ -12,7 +12,8 @@ from intervaltree import IntervalTree
 sys.path.insert(0, os.getcwd())
 import truvari
 from truvari import phab
-from truvari.region_vcf_iter import region_filter_stream, region_filter_fetch
+from truvari.region_vcf_iter import (region_filter_stream, region_filter_fetch,
+                                     region_filter_stream_overlap)
 
 # Assume we're running in truvari root directory
 
@@ -82,6 +83,107 @@ class TestBoundaries(unittest.TestCase):
             with self.subTest(method="region_filter_fetch in", entry=str(entry)):
                 self.assertEqual(
                     entry.info['include'], 'in', f"Bad in {str(entry)}")
+
+
+class TestOverlapRegionFiltering(unittest.TestCase):
+    """
+    Overlap region filtering keeps entries intersecting a region instead of
+    entries contained by one.
+    """
+    vcf_fn = "repo_utils/test_files/variants/boundary_cpx.vcf.gz"
+    bed_fn = "repo_utils/test_files/beds/boundary_cpx.bed"
+
+    def setUp(self):
+        self.tree = defaultdict(IntervalTree)
+        with open(self.bed_fn, 'r') as fh:
+            for line in fh:
+                data = line.strip().split()
+                self.tree[data[0]].addi(int(data[1]), int(data[2]) + 1)
+
+    def vcf(self):
+        return truvari.VariantFile(self.vcf_fn)
+
+    @staticmethod
+    def keys(entries):
+        return sorted((e.chrom, e.pos, e.ref, e.alts[0]) for e in entries)
+
+    def bruteforce(self, minsize):
+        """
+        Every entry sharing minsize positions with a region, tested directly
+        """
+        ret = []
+        for entry in self.vcf():
+            qstart, qend = entry.boundaries()
+            needed = max(1, min(minsize, qend - qstart))
+            if any(truvari.overlap_size(qstart, qend, i.begin, i.end - 1) >= needed
+                   for i in self.tree[entry.chrom]):
+                ret.append(entry)
+        return self.keys(ret)
+
+    def test_agrees_with_bruteforce(self):
+        """
+        The filter emits each qualifying entry exactly once
+        """
+        for minsize in (1, 4, 7, 1000):
+            with self.subTest(minsize=minsize):
+                self.assertEqual(self.bruteforce(minsize),
+                                 self.keys(region_filter_stream_overlap(
+                                     self.vcf(), self.tree, minsize=minsize)))
+
+    def test_superset_of_containment(self):
+        """
+        Anything contained by a region necessarily intersects it
+        """
+        contained = set(self.keys(
+            region_filter_stream(self.vcf(), self.tree, True, False)))
+        overlapping = set(self.keys(
+            region_filter_stream_overlap(self.vcf(), self.tree)))
+        self.assertTrue(contained.issubset(overlapping),
+                        f"contained entries dropped: {contained - overlapping}")
+        self.assertTrue(overlapping - contained,
+                        "fixture has no boundary spanning entries")
+
+    def test_minsize_narrows_but_keeps_short_entries(self):
+        """
+        Raising minsize can only drop entries, never entries too short to reach it
+        """
+        counts = [len(self.keys(region_filter_stream_overlap(
+            self.vcf(), self.tree, minsize=m))) for m in (1, 5, 7, 1000)]
+        self.assertEqual(counts, sorted(counts, reverse=True))
+        self.assertGreater(counts[0], counts[-1], "minsize never narrowed")
+        self.assertGreater(counts[-1], 0, "one position entries were dropped")
+
+    def test_fetch_regions_overlap(self):
+        """
+        VariantFile.fetch_regions routes overlap to the overlap filter
+        """
+        self.assertEqual(
+            self.keys(region_filter_stream_overlap(self.vcf(), self.tree, minsize=3)),
+            self.keys(self.vcf().fetch_regions(self.tree, overlap=3)))
+        with self.assertRaises(ValueError):
+            self.vcf().fetch_regions(self.tree, inside=False, overlap=1)
+
+    def test_with_region(self):
+        """
+        The returned region is one the entry actually intersects
+        """
+        for entry, (chrom, intv) in region_filter_stream_overlap(
+                self.vcf(), self.tree, with_region=True):
+            self.assertEqual(entry.chrom, chrom)
+            qstart, qend = entry.boundaries()
+            self.assertGreater(
+                truvari.overlap_size(qstart, qend, intv.begin, intv.end - 1), 0)
+
+    def test_overlaps_tree(self):
+        """
+        VariantRecord.overlaps_tree applies the same rule as the filter
+        """
+        for minsize in (1, 7):
+            with self.subTest(minsize=minsize):
+                self.assertEqual(self.bruteforce(minsize),
+                                 self.keys(e for e in self.vcf()
+                                           if e.overlaps_tree(self.tree, minsize)))
+        self.assertFalse(next(iter(self.vcf())).overlaps_tree(defaultdict(IntervalTree)))
 
 
 class TestFilteringLogic(unittest.TestCase):

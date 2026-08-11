@@ -93,6 +93,9 @@ def parse_args(args):
                         help="Bed file of regions to analyze. Only calls within regions are counted")
     filteg.add_argument("--extend", type=truvari.restricted_int, default=0,
                         help="Distance to allow comp entries outside of includebed regions (%(default)s)")
+    filteg.add_argument("--bench-overlaps", type=truvari.restricted_int, default=0,
+                        help="Positions a call must share with an includebed region to be counted, "
+                             "instead of requiring containment (%(default)s; 0 = off)")
 
     args = parser.parse_args(args)
     # When sizefilt is not provided and sizemin has been lowered below the default,
@@ -126,6 +129,9 @@ def check_params(args):
         check_fail = True
     if args.extend and args.includebed is None:
         logging.error("--extend can only be used when --includebed is set")
+        check_fail = True
+    if args.bench_overlaps and args.includebed is None:
+        logging.error("--bench-overlaps can only be used when --includebed is set")
         check_fail = True
     if os.path.isdir(args.output):
         logging.error("Output directory '%s' already exists", args.output)
@@ -451,7 +457,8 @@ class Bench():
     """
 
     def __init__(self, params=None, base_vcf=None, comp_vcf=None, outdir=None,
-                 includebed=None, extend=0, debug=False, do_logging=False):
+                 includebed=None, extend=0, bench_overlaps=0, debug=False,
+                 do_logging=False):
         """
         Initilize
         """
@@ -461,6 +468,7 @@ class Bench():
         self.outdir = outdir
         self.includebed = includebed
         self.extend = extend
+        self.bench_overlaps = bench_overlaps
         self.debug = debug
         self.do_logging = do_logging
         self.refine_candidates = []
@@ -474,6 +482,7 @@ class Bench():
                 "output": self.outdir,
                 "includebed": self.includebed,
                 "extend": self.extend,
+                "bench_overlaps": self.bench_overlaps,
                 "debug": self.debug}
 
     def run(self):
@@ -494,8 +503,12 @@ class Bench():
         regions_extended = (truvari.extend_region_tree(region_tree, self.extend)
                             if self.extend else region_tree)
 
-        base_i = base.fetch_regions(region_tree)
-        comp_i = comp.fetch_regions(regions_extended)
+        base_i = base.fetch_regions(region_tree, overlap=self.bench_overlaps)
+        comp_i = comp.fetch_regions(regions_extended, overlap=self.bench_overlaps)
+
+        in_regions = ((lambda x: x.overlaps_tree(region_tree, self.bench_overlaps))
+                      if self.bench_overlaps
+                      else (lambda x: x.within_tree(region_tree)))
 
         chunks = truvari.chunker(self.params,
                                  ('base', base_i),
@@ -506,7 +519,7 @@ class Bench():
             if (self.extend
                 and (match.comp is not None)
                 and not match.state
-                    and not match.comp.within_tree(region_tree)):
+                    and not in_regions(match.comp)):
                 match.comp = None
             output.write_match(match)
 
@@ -791,6 +804,7 @@ def bench_main(cmdargs):
                     outdir=args.output,
                     includebed=args.includebed,
                     extend=args.extend,
+                    bench_overlaps=args.bench_overlaps,
                     debug=args.debug,
                     do_logging=True)
 

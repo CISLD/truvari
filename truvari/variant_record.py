@@ -985,6 +985,20 @@ class VariantRecord:
 
         return truvari.coords_within(qstart, qend, m_ovl.begin, m_ovl.end - 1, end_within)
 
+    def overlaps_tree(self, tree, minsize=1):
+        """
+        Check if the entry shares at least `minsize` positions with any single
+        interval of the tree. Entries shorter than `minsize` only need to be
+        fully overlapped, which keeps one base pair events such as insertions
+        eligible. The intersection counterpart of `within_tree`.
+        """
+        qstart, qend = self.boundaries()
+        if self.chrom not in tree:
+            return False
+        needed = max(1, min(minsize, qend - qstart))
+        return any(truvari.overlap_size(qstart, qend, i.begin, i.end - 1) >= needed
+                   for i in tree[self.chrom].overlap(qstart, qend))
+
     def within(self, rstart, rend):
         """
         Extract entry boundaries and type to call `truvari.coords_within`
