@@ -1,0 +1,60 @@
+Bootstrap: docker
+From: quay.io/biocontainers/truvari:5.4.0--pyhdfd78af_0
+
+# Truvari 5.4.0 plus the changes this benchmark needs and 5.4.0 lacks:
+#
+#   --bench-overlaps N  count calls sharing at least N positions with an
+#                       --includebed region instead of requiring containment.
+#                       0 is off, so the default is stock behavior.
+#   refine on GRCh37    keep the chromosome column of refine.regions.txt and
+#                       of stratify's region file a string, so pysam's fetch
+#                       does not get an int for contigs named 1 .. 22
+#
+# Breakend handling is NOT patched here. Upstream already supports it:
+# `--bnddist -1` routes BNDs into the filtered bucket, removing them from both
+# call sets (docs/bench.md, "BND Comparison").
+#
+# The base image already carries the compiled dependencies (pysam, pytabix,
+# bwapy), so this only replaces the pure-python package on top of them.
+#
+# Build:
+#   apptainer build truvari-5.4.0-bench-overlaps.sif Singularity.bench-overlaps
+
+%files
+    truvari /opt/truvari-src/truvari
+    pyproject.toml /opt/truvari-src/pyproject.toml
+    setup.py /opt/truvari-src/setup.py
+    README.md /opt/truvari-src/README.md
+
+%post
+    set -eu
+    # Install over the base package without touching its compiled dependencies.
+    # pyproject.toml carries [project.scripts]; without it the wheel builds
+    # from the setup.py shim alone and the `truvari` entry point disappears.
+    python -m pip install --no-deps --force-reinstall /opt/truvari-src
+    # `truvari` is not on PATH inside the build shell; call the module directly.
+    python -m truvari version
+    # Fail the build if the patches failed to land. --bench-overlaps must take
+    # a value, so assert the metavar rather than the bare option name.
+    python -m truvari bench --help | grep -q -- '--bench-overlaps BENCH_OVERLAPS'
+    python -m truvari bench --help | grep -q -- '--bnddist'
+    grep -q "dtype={'chrom': str}" /opt/truvari-src/truvari/make_ga4gh.py
+
+%test
+    # The build-time test shell does not source the base image's PATH, so use
+    # the module form here. The `truvari` entry point is verified at runtime
+    # instead, which is how the Nextflow module invokes it.
+    python -m truvari version
+    python -m truvari bench --help | grep -q -- '--bench-overlaps BENCH_OVERLAPS'
+    # the console script must exist, since that is how Nextflow calls it
+    test -x /usr/local/bin/truvari
+
+%labels
+    Author KISLD / CISLD
+    Base truvari 5.4.0 (biocontainers)
+    Adds --bench-overlaps, GRCh37 refine fix
+
+%help
+    Truvari 5.4.0 with overlap-based --includebed filtering.
+    See the HudoGriz/truvari fork, branch deploy/bench-overlaps-5.4.0.
+    The --bench-overlaps feature is proposed upstream from feature/bench-overlaps.
