@@ -100,6 +100,8 @@ Extra Methods
 
 .. autofunction:: overlap_percent
 
+.. autofunction:: overlap_size
+
 .. autofunction:: overlaps
 
 .. autofunction:: performance_metrics

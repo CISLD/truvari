@@ -41,6 +41,7 @@ Extra methods:
 :meth:`opt_gz_open`
 :meth:`optimize_df_memory`
 :meth:`overlap_percent`
+:meth:`overlap_size`
 :meth:`overlaps`
 :meth:`performance_metrics`
 :meth:`read_bed_tree`
@@ -79,7 +80,7 @@ __all__ = [
     "chunker", "cmd_exe", "compress_index_vcf", "coords_within", "count_entries", "extend_region_tree",
     "file_zipper", "help_unknown_cmd", "get_gt", "get_scalebin", "get_sizebin", "get_svtype",
     "make_temp_filename", "merge_region_tree_overlaps", "msa2vcf", "opt_gz_open", "optimize_df_memory",
-    "overlap_percent", "overlaps", "performance_metrics", "read_bed_tree", "reciprocal_overlap",
+    "overlap_percent", "overlap_size", "overlaps", "performance_metrics", "read_bed_tree", "reciprocal_overlap",
     "restricted_float", "restricted_int", "ref_ranges", "roll_seqsim", "seqsim", "setup_logging",
     "sizesim", "unroll_seqsim", "vcf_ranges", "vcf_to_df",
 
@@ -107,6 +108,7 @@ _lazy_map = {
     "best_seqsim": ("truvari.comparisons", "best_seqsim"),
     "coords_within": ("truvari.comparisons", "coords_within"),
     "overlap_percent": ("truvari.comparisons", "overlap_percent"),
+    "overlap_size": ("truvari.comparisons", "overlap_size"),
     "overlaps": ("truvari.comparisons", "overlaps"),
     "reciprocal_overlap": ("truvari.comparisons", "reciprocal_overlap"),
     "roll_seqsim": ("truvari.comparisons", "roll_seqsim"),

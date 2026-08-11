@@ -114,6 +114,25 @@ def overlaps(s1, e1, s2, e2):
     return s_cand < e_cand
 
 
+def overlap_size(s1, e1, s2, e2):
+    """
+    Number of positions shared by two start/end ranges
+
+    :param `s1`: range 1 start
+    :type `s1`: int
+    :param `e1`: range 1 end
+    :type `e1`: int
+    :param `s2`: range 2 start
+    :type `s2`: int
+    :param `e2`: range 2 end
+    :type `e2`: int
+
+    :return: count of shared positions, zero when the ranges don't overlap
+    :rtype: int
+    """
+    return max(0, min(e1, e2) - max(s1, s2))
+
+
 def reciprocal_overlap(astart, aend, bstart, bend):
     """
     Calculates reciprocal overlap of two ranges

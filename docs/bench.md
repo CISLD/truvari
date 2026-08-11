@@ -283,6 +283,14 @@ for comparison. This is similar to pre-filtering your base/comp calls using:
 with the exception that Truvari requires the start and the end to be contained in the same includebed region 
 whereas `bedtools intersect` does not.
 
+Set `--bench-overlaps` to the number of positions a call must share with a single includebed region and
+Truvari counts intersecting calls instead, matching `bedtools intersect -u`. `--bench-overlaps 1` keeps every
+call touching a region, higher values require a longer shared span. This is aimed at region sets whose
+intervals are shorter than the calls, exons for instance, where containment would discard a deletion for
+extending past the boundary of the exon it removes. A call shorter than the requested span, an insertion at
+its single anchor position for example, only has to be fully overlapped. The default of 0 leaves the
+containment behavior described above unchanged.
+
 If an `--includebed` is not provided, the comparison is restricted to only the contigs present in the base VCF
 header. Therefore, any comparison calls on contigs not in the base calls will not be counted toward summary 
 statistics and will not be present in any output vcfs.

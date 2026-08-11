@@ -98,7 +98,7 @@ class VariantFile:
         tree, _ = truvari.read_bed_tree(bed_fn)
         return self.fetch_regions(tree, inside, with_region)
 
-    def fetch_regions(self, tree, inside=True, with_region=False):
+    def fetch_regions(self, tree, inside=True, with_region=False, overlap=0):
         """
         Fetch variants from the VCF based on regions defined in a tree of chrom:IntervalTree.
 
@@ -108,10 +108,13 @@ class VariantFile:
         :type inside: bool
         :param with_region: If True, return tuples of (`truvari.VariantRecord`, region). Defaults to False.
         :type with_region: bool
+        :param overlap: If non-zero, keep variants intersecting a region by at least this
+            many positions instead of requiring containment. Only valid with inside=True.
+        :type overlap: int
         :return: Iterator of truvari.VariantRecord objects or tuples of (`truvari.VariantRecord`, region).
         :rtype: iterator
         """
-        return region_filter(self, tree, inside, with_region)
+        return region_filter(self, tree, inside, with_region, overlap)
 
     def write(self, record):
         """
